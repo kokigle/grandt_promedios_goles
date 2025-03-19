@@ -1,13 +1,12 @@
-name: Scraper Diario
+name: Ejecutar scraper y subir CSV
 
 on:
   schedule:
-    - cron: '30 0 * * 3'  # Se ejecuta todos los martes a las 21:30 en Argentina (00:30 AM UTC del miércoles)
-
-  workflow_dispatch:  # Permite ejecutarlo manualmente desde GitHub Actions
+    - cron: "0 12 * * 2,5"  # Martes y viernes a las 12:00 UTC
+  workflow_dispatch:  # Permite ejecutar manualmente
 
 jobs:
-  run-scraper:
+  scrape:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,17 +16,20 @@ jobs:
       - name: Configurar Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'
+          python-version: '3.9'
 
       - name: Instalar dependencias
         run: |
-          pip install -r requirements.txt
+          pip install requests beautifulsoup4 selenium webdriver-manager
 
-      - name: Ejecutar el script
-        run: python scraper.py
+      - name: Ejecutar script
+        run: python script.py
 
-      - name: Subir el archivo CSV como artefacto
-        uses: actions/upload-artifact@v4
-        with:
-          name: jugadores_estadisticas
-          path: jugadores_estadisticas.csv
+      - name: Confirmar cambios y subir CSV
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add jugadores_estadisticas.csv
+          git commit -m "Actualizar datos de jugadores"
+          git push
+        continue-on-error: true
