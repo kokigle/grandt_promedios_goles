@@ -17,35 +17,15 @@ TEAMS = {
     "Argentinos Juniors": "https://www.sofascore.com/es/equipo/futbol/argentinos-juniors/3216",
     "Estudiantes de La Plata": "https://www.sofascore.com/es/equipo/futbol/estudiantes-de-la-plata/3206",
     "San Lorenzo": "https://www.sofascore.com/es/equipo/futbol/san-lorenzo/3201",
-    "Central Córdoba": "https://www.sofascore.com/es/equipo/futbol/central-cordoba/65676",
-    "Defensa y Justicia": "https://www.sofascore.com/es/equipo/futbol/defensa-y-justicia/36839",
-    "Barracas Central": "https://www.sofascore.com/es/equipo/futbol/barracas-central/65668",
-    "Deportivo Riestra": "https://www.sofascore.com/es/equipo/futbol/deportivo-riestra/189723",
-    "Lanús": "https://www.sofascore.com/es/equipo/futbol/lanus/3218",
-    "Platense": "https://www.sofascore.com/es/equipo/futbol/platense/36837",
-    "Independiente Rivadavia": "https://www.sofascore.com/es/equipo/futbol/independiente-rivadavia/36842",
-    "Gimnasia y Esgrima de La Plata": "https://www.sofascore.com/es/equipo/futbol/gimnasia-y-esgrima/3205",
-    "Belgrano": "https://www.sofascore.com/es/equipo/futbol/belgrano/3203",
-    "Banfield": "https://www.sofascore.com/es/equipo/futbol/banfield/3219",
-    "Godoy Cruz": "https://www.sofascore.com/es/equipo/futbol/godoy-cruz/6074",
-    "Unión": "https://www.sofascore.com/es/equipo/futbol/club-atletico-union/3204",
-    "Instituto Córdoba": "https://www.sofascore.com/es/equipo/futbol/instituto-cordoba/4937",
-    "Sarmiento": "https://www.sofascore.com/es/equipo/futbol/sarmiento/42338",
-    "Newell's Old Boys": "https://www.sofascore.com/es/equipo/futbol/newells-old-boys/3212",
-    "Vélez Sarsfield": "https://www.sofascore.com/es/equipo/futbol/velez-sarsfield/3208",
-    "Talleres de Córdoba": "https://www.sofascore.com/es/equipo/futbol/talleres/3210",
-    "Atlético Tucumán": "https://www.sofascore.com/es/equipo/futbol/atletico-tucuman/36833",
-    "San Martín de San Juan": "https://www.sofascore.com/es/equipo/futbol/san-martin-de-san-juan/7772",
-    "Aldosivi": "https://www.sofascore.com/es/equipo/futbol/aldosivi/36836",
     "Boca Juniors": "https://www.sofascore.com/es/equipo/futbol/boca-juniors/3202",
-    "Riber Plate": "https://www.sofascore.com/es/equipo/futbol/river-plate/3211"
+    "River Plate": "https://www.sofascore.com/es/equipo/futbol/river-plate/3211",
 }
 
 # ----------------------- Función para obtener los enlaces de los jugadores -----------------------
 def get_players_links(team_url):
     response = requests.get(team_url)
     soup = BeautifulSoup(response.text, 'html.parser')
-    
+
     players_links = set()
     for link in soup.find_all('a', href=True):
         if '/jugador/' in link['href']:
@@ -69,27 +49,33 @@ def get_player_stats(player_url):
     options.add_argument("--disable-software-rasterizer")
     options.add_argument("user-agent=Mozilla/5.0")
     options.add_argument("--ignore-certificate-errors")
-    
+
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     driver.get(player_url)
-    time.sleep(5)  
-    
+    time.sleep(5)
+
     html = driver.page_source
     driver.quit()
-    
+
     soup = BeautifulSoup(html, "html.parser")
-    spans = soup.find_all("span")[70:]  # Tomamos desde el índice 70
+    spans = soup.find_all("span")
+
+    # Buscar la posición del primer span que contenga "2025"
+    start_index = next((i for i, span in enumerate(spans) if "2025" in span.text.strip()), None)
+
+    # Si no encuentra "2025", devolver 0 en todo
+    if start_index is None:
+        return 0, 0
+
+    # Cortar la lista de spans desde "2025" en adelante
+    spans = spans[start_index:]
 
     # Detectamos hasta dónde tomar los spans (antes de "Leyenda")
     for i, span in enumerate(spans):
         if "Leyenda" in span.text.strip():
-            spans = spans[:i]  # Cortamos hasta la posición de "Leyenda"
+            spans = spans[:i]
             break
-
-    # Debug: Mostrar todos los spans extraídos
-    for i, span in enumerate(spans):
-        print(f"{i}: {span.text.strip()}")
 
     suma_minutos, suma_goles = 0, 0
     i = 0
@@ -106,8 +92,8 @@ def get_player_stats(player_url):
                     i = target_index + 2  
                     continue
         i += 1
-    return suma_minutos, suma_goles
 
+    return suma_minutos, suma_goles
 
 # ----------------------- Código principal -----------------------
 CSV_FILENAME = "jugadores_estadisticas.csv"
