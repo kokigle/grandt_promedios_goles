@@ -73,14 +73,24 @@ def get_player_stats(player_url):
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     driver.get(player_url)
-    time.sleep(5)  # Espera igual que el código anterior
+    time.sleep(5)  
     
     html = driver.page_source
     driver.quit()
     
     soup = BeautifulSoup(html, "html.parser")
-    spans = soup.find_all("span")[70:200]
-    
+    spans = soup.find_all("span")[70:]  # Tomamos desde el índice 70
+
+    # Detectamos hasta dónde tomar los spans (antes de "Leyenda")
+    for i, span in enumerate(spans):
+        if "Leyenda" in span.text.strip():
+            spans = spans[:i]  # Cortamos hasta la posición de "Leyenda"
+            break
+
+    # Debug: Mostrar todos los spans extraídos
+    for i, span in enumerate(spans):
+        print(f"{i}: {span.text.strip()}")
+
     suma_minutos, suma_goles = 0, 0
     i = 0
     while i < len(spans):
@@ -97,6 +107,7 @@ def get_player_stats(player_url):
                     continue
         i += 1
     return suma_minutos, suma_goles
+
 
 # ----------------------- Código principal -----------------------
 CSV_FILENAME = "jugadores_estadisticas.csv"
