@@ -27,7 +27,7 @@ jobs:
         run: python scraper.py
 
       - name: Subir el archivo CSV como artefacto
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: jugadores_estadisticas
           path: jugadores_estadisticas.csv
