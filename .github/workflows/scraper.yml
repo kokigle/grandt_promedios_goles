@@ -23,7 +23,7 @@ jobs:
           pip install requests beautifulsoup4 selenium webdriver-manager
 
       - name: Ejecutar script
-        run: python script.py
+        run: python scraper.py
 
       - name: Confirmar cambios y subir CSV
         run: |
