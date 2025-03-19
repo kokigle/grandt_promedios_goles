@@ -36,7 +36,9 @@ TEAMS = {
     "Talleres de Córdoba": "https://www.sofascore.com/es/equipo/futbol/talleres/3210",
     "Atlético Tucumán": "https://www.sofascore.com/es/equipo/futbol/atletico-tucuman/36833",
     "San Martín de San Juan": "https://www.sofascore.com/es/equipo/futbol/san-martin-de-san-juan/7772",
-    "Aldosivi": "https://www.sofascore.com/es/equipo/futbol/aldosivi/36836"
+    "Aldosivi": "https://www.sofascore.com/es/equipo/futbol/aldosivi/36836",
+    "Boca Juniors": "https://www.sofascore.com/es/equipo/futbol/boca-juniors/3202",
+    "Riber Plate": "https://www.sofascore.com/es/equipo/futbol/river-plate/3211"
 }
 
 # ----------------------- Función para obtener los enlaces de los jugadores -----------------------
@@ -44,19 +46,12 @@ def get_players_links(team_url):
     response = requests.get(team_url)
     soup = BeautifulSoup(response.text, 'html.parser')
     
-    players_links = []
+    players_links = set()
     for link in soup.find_all('a', href=True):
         if '/jugador/' in link['href']:
             full_url = f"https://www.sofascore.com{link['href']}"
-            if full_url not in players_links:
-                players_links.append(full_url)
-    return players_links
-
-# ----------------------- Función para extraer nombre desde URL -----------------------
-def extract_player_name(player_url):
-    name_part = player_url.split("/jugador/")[-1].split("/")[0]
-    name = " ".join(reversed(name_part.split("-"))).title()
-    return name
+            players_links.add(full_url)
+    return list(players_links)
 
 # ----------------------- Función para extraer minutos y goles de un jugador -----------------------
 def es_numero(valor):
@@ -78,7 +73,7 @@ def get_player_stats(player_url):
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     driver.get(player_url)
-    time.sleep(5)
+    time.sleep(5)  # Espera igual que el código anterior
     
     html = driver.page_source
     driver.quit()
@@ -88,7 +83,6 @@ def get_player_stats(player_url):
     
     suma_minutos, suma_goles = 0, 0
     i = 0
-    
     while i < len(spans):
         valor = es_numero(spans[i].text.strip())
         if isinstance(valor, float):  
@@ -109,22 +103,17 @@ CSV_FILENAME = "jugadores_estadisticas.csv"
 
 with open(CSV_FILENAME, mode="w", newline="", encoding="utf-8") as file:
     writer = csv.writer(file)
-    writer.writerow(["EQUIPO", "NOMBRE", "LINK_JUGADOR", "MINUTOS", "GOLES", "GOLES CADA 90 MIN"])
+    writer.writerow(["EQUIPO", "LINK_JUGADOR", "MINUTOS", "GOLES", "GOLES CADA 90 MIN"])
 
     for team_name, team_url in TEAMS.items():
         print(f"\n🔍 Procesando equipo: {team_name}")
         players = get_players_links(team_url)
 
         for player_url in players:
-            player_name = extract_player_name(player_url)
             minutos, goles = get_player_stats(player_url)
             goles_por_90 = round((goles / minutos) * 90, 2) if minutos > 0 else 0
-            
-            # Escribir en el CSV inmediatamente
-            with open(CSV_FILENAME, mode="a", newline="", encoding="utf-8") as file:
-                writer = csv.writer(file)
-                writer.writerow([team_name, player_name, player_url, minutos, goles, goles_por_90])
-            
-            print(f"✅ {player_name} ({player_url}) | Min: {minutos} | Goles: {goles} | Goles/90: {goles_por_90}")
+
+            writer.writerow([team_name, player_url, minutos, goles, goles_por_90])
+            print(f"✅ {player_url} | Min: {minutos} | Goles: {goles} | Goles/90: {goles_por_90}")
 
 print(f"\n✅ Datos guardados en {CSV_FILENAME}")
