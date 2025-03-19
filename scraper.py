@@ -2,16 +2,12 @@ import requests
 from bs4 import BeautifulSoup
 import csv
 import time
-import urllib3
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 
-# Desactivar advertencias de SSL
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# Lista de equipos y URLs
+# ----------------------- Lista de equipos -----------------------
 TEAMS = {
     "Racing Club": "https://www.sofascore.com/es/equipo/futbol/racing-club/3215",
     "Huracán": "https://www.sofascore.com/es/equipo/futbol/huracan/7629",
@@ -40,84 +36,95 @@ TEAMS = {
     "Talleres de Córdoba": "https://www.sofascore.com/es/equipo/futbol/talleres/3210",
     "Atlético Tucumán": "https://www.sofascore.com/es/equipo/futbol/atletico-tucuman/36833",
     "San Martín de San Juan": "https://www.sofascore.com/es/equipo/futbol/san-martin-de-san-juan/7772",
-    "Aldosivi": "https://www.sofascore.com/es/equipo/futbol/aldosivi/36836",
-    "Boca Juniors": "https://www.sofascore.com/es/equipo/futbol/boca-juniors/3202",
-    "River Plate": "https://www.sofascore.com/es/equipo/futbol/river-plate/3211"
+    "Aldosivi": "https://www.sofascore.com/es/equipo/futbol/aldosivi/36836"
 }
 
-# Función para obtener enlaces de jugadores
+# ----------------------- Función para obtener los enlaces de los jugadores -----------------------
 def get_players_links(team_url):
-    response = requests.get(team_url, verify=False)
+    response = requests.get(team_url)
     soup = BeautifulSoup(response.text, 'html.parser')
-
-    players_links = set()
+    
+    players_links = []
     for link in soup.find_all('a', href=True):
         if '/jugador/' in link['href']:
-            players_links.add(f"https://www.sofascore.com{link['href']}")
+            full_url = f"https://www.sofascore.com{link['href']}"
+            if full_url not in players_links:
+                players_links.append(full_url)
+    return players_links
 
-    return list(players_links)
+# ----------------------- Función para extraer nombre desde URL -----------------------
+def extract_player_name(player_url):
+    name_part = player_url.split("/jugador/")[-1].split("/")[0]
+    name = " ".join(reversed(name_part.split("-"))).title()
+    return name
 
-# Función para extraer minutos y goles usando Selenium
+# ----------------------- Función para extraer minutos y goles de un jugador -----------------------
+def es_numero(valor):
+    try:
+        return float(valor) if '.' in valor else int(valor)
+    except ValueError:
+        return None
+
 def get_player_stats(player_url):
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("user-agent=Mozilla/5.0")
     options.add_argument("--ignore-certificate-errors")
-
+    
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
-
     driver.get(player_url)
-    time.sleep(3)
-
+    time.sleep(5)
+    
     html = driver.page_source
     driver.quit()
-
+    
     soup = BeautifulSoup(html, "html.parser")
     spans = soup.find_all("span")[70:200]
+    
+    suma_minutos, suma_goles = 0, 0
+    i = 0
+    
+    while i < len(spans):
+        valor = es_numero(spans[i].text.strip())
+        if isinstance(valor, float):  
+            target_index = i + 3  
+            if target_index + 1 < len(spans):
+                minutos = es_numero(spans[target_index].text.strip())
+                goles = es_numero(spans[target_index + 1].text.strip())
+                if isinstance(minutos, int) and isinstance(goles, int):
+                    suma_minutos += minutos
+                    suma_goles += goles
+                    i = target_index + 2  
+                    continue
+        i += 1
+    return suma_minutos, suma_goles
 
-    minutos, goles = 0, 0
-    for i in range(len(spans) - 3):
-        try:
-            if spans[i].text.strip().isdigit():
-                if spans[i+3].text.strip().isdigit() and spans[i+4].text.strip().isdigit():
-                    minutos += int(spans[i+3].text.strip())
-                    goles += int(spans[i+4].text.strip())
-        except:
-            continue
-
-    # Calcular goles cada 90 minutos
-    if minutos > 0:
-        goles_por_90 = (goles / minutos) * 90
-    else:
-        goles_por_90 = 0
-
-    return minutos, goles, goles_por_90
-
-# Función para extraer el nombre del jugador desde el enlace
-def get_player_name(player_url):
-    # El nombre está en la URL en la forma "/jugador/nombre-apellido/id"
-    player_id = player_url.split("/")[4]  # Parte del enlace después de "/jugador/"
-    player_name = player_id.replace("-", " ").title()  # Reemplaza "-" con espacio y usa title() para capitalizar
-    return player_name
-
-# Archivo de salida CSV
+# ----------------------- Código principal -----------------------
 CSV_FILENAME = "jugadores_estadisticas.csv"
 
 with open(CSV_FILENAME, mode="w", newline="", encoding="utf-8") as file:
     writer = csv.writer(file)
-    writer.writerow(["EQUIPO", "JUGADOR", "link_jugador", "minutos", "goles", "goles_por_90"])
+    writer.writerow(["EQUIPO", "NOMBRE", "LINK_JUGADOR", "MINUTOS", "GOLES", "GOLES CADA 90 MIN"])
 
     for team_name, team_url in TEAMS.items():
         print(f"\n🔍 Procesando equipo: {team_name}")
         players = get_players_links(team_url)
 
         for player_url in players:
-            player_name = get_player_name(player_url)
-            minutos, goles, goles_por_90 = get_player_stats(player_url)
-            writer.writerow([team_name, player_name, player_url, minutos, goles, goles_por_90])
-            print(f"✅ {player_name} | Minutos: {minutos} | Goles: {goles} | Goles por 90: {goles_por_90:.2f}")
+            player_name = extract_player_name(player_url)
+            minutos, goles = get_player_stats(player_url)
+            goles_por_90 = round((goles / minutos) * 90, 2) if minutos > 0 else 0
+            
+            # Escribir en el CSV inmediatamente
+            with open(CSV_FILENAME, mode="a", newline="", encoding="utf-8") as file:
+                writer = csv.writer(file)
+                writer.writerow([team_name, player_name, player_url, minutos, goles, goles_por_90])
+            
+            print(f"✅ {player_name} ({player_url}) | Min: {minutos} | Goles: {goles} | Goles/90: {goles_por_90}")
 
 print(f"\n✅ Datos guardados en {CSV_FILENAME}")
